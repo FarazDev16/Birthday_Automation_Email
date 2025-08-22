@@ -1,0 +1,14 @@
+{
+  "sender_email": "your_verified_email@example.com",
+  "sender_password": "your_password_or_app_password",
+  "recipients": ["recipient1@example.com", "recipient2@example.com"],
+  "excel_file": "Employees_Birthday_List/Employees_Birthday_List.xlsx",
+  "templates": [
+    "Templates/Sample_1.png",
+    "Templates/Sample_2.png",
+    "Templates/Sample_3.png",
+    "Templates/Sample_4.png",
+    "Templates/Sample_5.png"
+  ],
+  "output_file": "birthday_card.png"
+}
