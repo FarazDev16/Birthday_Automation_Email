@@ -10,5 +10,6 @@
     "Templates/Sample_4.png",
     "Templates/Sample_5.png"
   ],
+  "bubble_image": "bubble_sample.png",
   "output_file": "birthday_card.png"
 }
