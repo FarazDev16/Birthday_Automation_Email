@@ -6,9 +6,18 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.image import MIMEImage
 from botocore.exceptions import ClientError
+import textwrap
 
 s3 = boto3.client("s3")
 ses = boto3.client("ses")
+
+# Path to fonts folder in Lambda Layer or local
+FONT_DIR = "/opt/fonts"
+FONTS = {
+    "bold_italic": os.path.join(FONT_DIR, "NotoSans-BoldItalic.ttf"),
+    "bold": os.path.join(FONT_DIR, "NotoSans-Bold.ttf"),
+    "regular": os.path.join(FONT_DIR, "NotoSans-Regular.ttf")
+}
 
 
 def lambda_handler(event, context):
@@ -20,7 +29,7 @@ def lambda_handler(event, context):
         messages_key = os.environ.get("MESSAGES_KEY")
 
         if not all([bucket, config_key, messages_key]):
-            raise ValueError("One or more required environment variables are missing.")
+            raise ValueError("Required environment variables are missing.")
 
         # Helper to safely get S3 object
         def get_s3_object(bucket, key):
@@ -61,7 +70,7 @@ def lambda_handler(event, context):
             print("No birthdays this month.")
             return {"statusCode": 200, "body": "No birthdays this month"}
 
-        # Load template image
+        # Load template image (random)
         templates = config.get("templates", [])
         if not templates:
             raise ValueError("No templates provided in config.")
@@ -76,7 +85,7 @@ def lambda_handler(event, context):
             img.thumbnail((max_width, max_height))
         print("Template resized if necessary.")
 
-        # Load bubble image (random selection)
+        # Load bubble image (random)
         bubble_images = config.get("bubble_images", [])
         if not bubble_images:
             raise ValueError("No bubble images provided in config.")
@@ -136,64 +145,43 @@ def build_email(sender, recipients, image_buffer, monthly_messages):
     return msg.as_string()
 
 
-def add_bubble_with_names(img, bubble_bytes, names, size_ratio=0.5):
+def add_bubble_with_names(img, bubble_bytes, names, size_ratio=0.5, padding=20, top_padding=40, line_spacing=3):
     base_w, base_h = img.size
     bubble_img = Image.open(io.BytesIO(bubble_bytes)).convert("RGBA")
 
-    font_path = "arialbi.ttf"
-    try:
-        font_size = 50  # Start bigger
-        font = ImageFont.truetype(font_path, font_size)
-    except:
-        font_size = 30
-        font = ImageFont.load_default()
-
-    text = "\n".join(names)
-
-    # Dynamically adjust bubble size OR reduce font size
-    temp_draw = ImageDraw.Draw(img)
-    padding = 60
-
-    while True:
-        # Get text dimensions for current font size
-        text_bbox = temp_draw.multiline_textbbox((0, 0), text, font=font, spacing=8)
-        text_w, text_h = text_bbox[2] - text_bbox[0], text_bbox[3] - text_bbox[1]
-
-        # Required bubble dimensions
-        required_w = text_w + padding
-        required_h = text_h + padding
-
-        # Initial bubble size from ratio
-        new_width = max(int(base_w * size_ratio), required_w)
-        aspect_ratio = bubble_img.height / bubble_img.width
-        new_height = max(int(new_width * aspect_ratio), required_h)
-
-        # If bubble fits inside base image, break loop; else reduce font size and retry
-        if new_width <= base_w and new_height <= base_h:
-            break
-        else:
-            font_size -= 2
-            if font_size < 15:  # Avoid too small fonts
-                font_size = 15
-                break
-            font = ImageFont.truetype(font_path, font_size)
-
-    # Resize bubble and center on base image
+    # Resize bubble based on size_ratio
+    new_width = int(base_w * size_ratio)
+    aspect_ratio = bubble_img.height / bubble_img.width
+    new_height = int(new_width * aspect_ratio)
     bubble_img = bubble_img.resize((new_width, new_height), Image.LANCZOS)
+
+    # Center bubble on template
     bubble_x = (base_w - new_width) // 2
     bubble_y = (base_h - new_height) // 2
     img.paste(bubble_img, (bubble_x, bubble_y), bubble_img)
 
-    # Draw text centered in bubble
-    text_bbox = temp_draw.multiline_textbbox((0, 0), text, font=font, spacing=8)
-    text_w, text_h = text_bbox[2] - text_bbox[0], text_bbox[3] - text_bbox[1]
-    text_x = bubble_x + (new_width - text_w) // 2
-    text_y = bubble_y + (new_height - text_h) // 2
-    top_padding = 40 
-    text_y = bubble_y + top_padding 
-
     draw = ImageDraw.Draw(img)
-    draw.multiline_text((text_x, text_y), text, font=font, fill=(0, 0, 0), spacing=8)
+
+    # Font setup
+    chosen_font = "bold_italic"  # Can be dynamic
+    font_path = FONTS.get(chosen_font, None)
+    font_size = 15  # fixed font
+    font = ImageFont.truetype(font_path, font_size) if font_path else ImageFont.load_default()
+
+    # Wrap each name (optional)
+    wrapped_lines = []
+    for name in names:
+        wrapped_lines.extend(textwrap.wrap(name, width=100))  # adjust width as needed
+
+    # Draw text starting from a little lower top_padding
+    current_y = bubble_y + top_padding
+    for line in wrapped_lines:
+        bbox = draw.textbbox((0,0), line, font=font)
+        text_w = bbox[2] - bbox[0]
+        text_x = bubble_x + (new_width - text_w)//2
+        draw.text((text_x, current_y), line, font=font, fill=(0,0,0))
+        current_y += (bbox[3] - bbox[1]) + line_spacing  # add small line spacing
 
     return img
+
 
