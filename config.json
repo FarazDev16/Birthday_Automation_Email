@@ -1,7 +1,7 @@
 {
-  "sender_email": "fshaikh512@gmail.com",
-  "sender_password": "wfii hpzm piee ulqw",
-  "recipients": ["fshaikh512@gmail.com"],
+  "sender_email": "Your sender_email",
+  "sender_password": "Your app_password",
+  "recipients": ["Your recipients_email"],
   "excel_file": "Employees_Birthday_List/Employees_Birthday_List.xlsx",
   "templates": [
     "Templates/Sample_1.png",
